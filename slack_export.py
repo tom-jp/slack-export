@@ -6,6 +6,7 @@ from typing import Any, Literal
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+import random, string
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ class Client:
         if not params:
             params = {}
 
-        response = self._session.get(url, headers=self._headers, params=params, timeout=3)
+        response = self._session.get(url, headers=self._headers, params=params, timeout=3, verify=False)
         response.raise_for_status()
         return response.json()
 
@@ -45,7 +46,7 @@ class Client:
         response = self._call(
             "https://slack.com/api/conversations.list",
             params={
-                "types": "public_channel,private_channel,mpim,im",
+                "types": "mpim,im",               
                 "exclude_archived": True,
             },
         )
@@ -102,6 +103,11 @@ class Client:
 
         return replies
 
+    def randomname(n):
+        return ''.join(random.choices(string.ascii_letters + string.digits, k=n))
+    
+    def truncate(string, length, ellipsis='...'):
+        return string[:length] + (ellipsis if string[length:] else '')
 
 def main(
     token: str,
@@ -130,7 +136,9 @@ def main(
     for channel in channels:
         channel_id = channel["id"]
         channel_name = channel.get("name") or users[channel.get("user")]["name"]
-
+        random_name = ''.join(random.choices(string.ascii_letters + string.digits, k=20))
+        channel_name = channel_name[0:50]+random_name
+        
         logger.info(f"Fetching messages: {channel_name=}")
         messages = client.fetch_messages(channel_id)
 
@@ -147,7 +155,7 @@ def main(
         logger.info(f"{len(messages_and_replies)} messages/replies fetched")
 
         output_path = f"{output_dir / channel_name}.{output_format}"
-        with open(output_path, "w") as f:
+        with open(output_path, "w", encoding="utf-8_sig") as f:
             if output_format == "json":
                 json.dump(
                     messages_and_replies,
